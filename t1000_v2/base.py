@@ -30,7 +30,7 @@ class Wallet:
         self.net_worth = net_worth
         self.balance = balance
 
-class ExchangeEnvirnment(Market, Wallet):
+class ExchangeEnvironment(Market, Wallet):
     def __init__(self, net_worth: int, balance: int) -> None:
         super().__init__(net_worth, balance)
         pass
@@ -45,7 +45,7 @@ class Renderer:
     def __init__(self) -> None:
         pass
 
-class TradingFloor:
+class TradingFloor(ExchangeEnvironment, Brain, Renderer):
     """A class containing all the logic and instruments to simulate a trading operation.
 
     documentation example: https://www.programiz.com/python-programming/docstrings

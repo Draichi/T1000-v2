@@ -1,4 +1,4 @@
-FROM python:3.7-alpine
+FROM rayproject/ray:ed6c6f-py38-cu116
 COPY . /app
 WORKDIR /app
 RUN pip install .
