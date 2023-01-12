@@ -12,6 +12,9 @@ If you want to replace this with a Flask application run:
 
 and then choose `flask` as template.
 """
+import gym
+import numpy as np
+from gym import spaces
 
 CONFIG_SPEC_CONSTANTS = {
     "candlestick_width": {  # constants
@@ -21,29 +24,101 @@ CONFIG_SPEC_CONSTANTS = {
     },
 }
 
-class Market:
+
+class Renderer:
     def __init__(self) -> None:
         pass
+
+
+class Market:
+    exchange_commission = 0.00075
+
+    def __init__(self) -> None:
+        self.df_features = {}
+
+    def populate_dataframes(self):
+        pass
+
+    @staticmethod
+    def get_data_from_api():
+        pass
+
 
 class Wallet:
     def __init__(self, net_worth: int, balance: int) -> None:
         self.net_worth = net_worth
         self.balance = balance
+        self.cost = 0
+        self.sales = 0
+        self.shares_bought_per_asset = {}
+        self.shares_sold_per_asset = {}
+        self.shares_held_per_asset = {}
 
-class ExchangeEnvironment(Market, Wallet):
-    def __init__(self, net_worth: int, balance: int) -> None:
-        super().__init__(net_worth, balance)
+
+class ExchangeEnvironment(gym.Env, Wallet, Market):
+    def __init__(self, net_worth: int, balance: int, assets: list) -> None:
+        Wallet.__init__(self, net_worth, balance)
+        Market.__init__(self)
+
+        # 4,3 = (balance, cost, sales, net_worth) + (shares bought, shares sold, shares held foreach asset)
+        observation_length = len(self.df_features[assets[0]].columns) + 4 + 3
+
+        # action space = buy and sell for each asset, pĺus hold position
+        action_space = 1 + len(assets) * 2
+
+        # obs space = (num assets, indicator + (balance, cost, sales, net_worth) + (shares bought, shares sold, shares held foreach asset))
+        observation_space = (len(assets),
+                             observation_length)
+
+        self.action_space = spaces.Box(
+            low=np.array([0, 0]),
+            high=np.array([action_space, 1]),
+            dtype=np.float16)
+
+        self.observation_space = spaces.Box(
+            low=-np.finfo(np.float32).max,
+            high=np.finfo(np.float32).max,
+            shape=observation_space,
+            dtype=np.float16)
+
+    def get_HODL_strategy(self) -> None:
         pass
 
+    def compute_reward(self) -> None:
+        pass
+
+    def step(self):
+        pass
+
+    def reset(self):
+        pass
+
+    def close(self):
+        pass
+
+
 class Brain:
-    def __init__(self, learning_rate, algorithm='PPO', num_workers = 2) -> None:
+    def __init__(self, learning_rate, algorithm='PPO', num_workers=2) -> None:
         self.algorithm = algorithm
         self.num_workers = num_workers
         self.learning_schedule = learning_rate
 
-class Renderer:
-    def __init__(self) -> None:
+    @staticmethod
+    def rollout():
         pass
+
+    def train(self) -> None:
+        pass
+
+    def test(self) -> None:
+        pass
+
+    def trial_name_string(self) -> str:
+        return 'trial-' + self.algorithm
+
+    def get_instruments_from_checkpoint(self):
+        pass
+
 
 class TradingFloor(ExchangeEnvironment, Brain, Renderer):
     """A class containing all the logic and instruments to simulate a trading operation.
@@ -66,33 +141,25 @@ class TradingFloor(ExchangeEnvironment, Brain, Renderer):
 
     create_trial_name()
         Return the formatted trial name as a string
-    
+
     """
-    def __init__(self, assets: list, checkpoint_path = '', algorithm = 'PPO', currency = 'USD', granularity = 'hour', datapoints = 150, initial_balance = 300, exchange_commission = 0.00075, exchange = 'binance') -> None:
+
+    def __init__(self, assets: list, checkpoint_path='', algorithm='PPO', currency='USD', granularity='hour', datapoints=150, initial_balance=300, exchange_commission=0.00075, exchange='binance') -> None:
+        ExchangeEnvironment.__init__(
+            self, initial_balance, initial_balance, assets)
+        Brain.__init__(self, 1e-4)
+        Renderer.__init__(self)
         self.assets = assets
         self.algorithm = algorithm
         self.currency = currency
         self.granularity = granularity
         self.datapoints = datapoints
-        self.initial_balance = initial_balance
-        self.exchange_commission = exchange_commission
-        self.exchange = exchange
-        self.dataframe = {}
         self.config_spec = {}
 
-        if checkpoint_path:
-            self.get_instruments_from_checkpoint(checkpoint_path)
-
-        self.check_variables_integrity()
-        self.populate_dataframes()
-
-    def create_trial_name(self, *args) -> str:
-        return '{}_{}_{}_{}'.format('-'.join(self.assets), self.currency, self.granularity, self.datapoints)
-
-    def get_datasets(self, asset: str) -> dict:
+    def generate_config_spec(self):
         pass
 
-    def get_instruments_from_checkpoint(self, checkpoint_path: str) -> dict:
+    def add_dataframes_to_config_spec(self):
         pass
 
     def check_variables_integrity(self) -> None:
@@ -104,10 +171,3 @@ class TradingFloor(ExchangeEnvironment, Brain, Renderer):
             raise ValueError("Incorrect 'granularity' value")
         if type(self.datapoints) != int or 1 > self.datapoints > 2000:
             raise ValueError("Incorrect 'datapoints' value")
-        
-    def populate_dataframes(self) -> None:
-        for asset in self.assets:
-            T-1000 = 'a'
-            self.dataframe[asset] = {}
-            self.dataframe[asset]['train'], self.dataframe[asset]['test'] = self.get_datasets(asset)
-
