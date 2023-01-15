@@ -20,6 +20,7 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 from gym import spaces
+from ray import data as ray_data
 
 CONFIG_SPEC_CONSTANTS = {
     "candlestick_width": {  # constants
@@ -40,8 +41,9 @@ class Market:
 
     Attributes
     ----------
-        exchange (str): the exchange name
-        assets (list[str]): a list containing assets to trade"""
+        - exchange (str): the exchange name.
+        - assets (list[str]): a list containing assets to trade. Example: `["BTC", "XMR"]`
+        - granularity (str): how to fetch the data. Options: `hour`, `day`."""
     load_dotenv()
     CRYPTOCOMPARE_API_KEY = os.getenv('CRYPTOCOMPARE_API_KEY')
     exchange_commission = 0.00075
@@ -55,27 +57,35 @@ class Market:
         self.granularity = granularity
         self.currency = currency
         self.datapoints = datapoints
-        self.get_dataframes(assets)
+        self.__get_dataframes(assets)
 
-    def get_dataframes(self, assets: list[str]):
+    def __get_dataframes(self, assets: list[str]) -> None:
+        """Get the dataframe for each asset
+
+            Parameters:
+                assets (list[str]): The list of assets to get the dataframe. Example: `["BTC", "ETH"]`
+
+            Returns:
+                None"""
 
         if not self.CRYPTOCOMPARE_API_KEY:
             raise ImportError('CRYPTOCOMPARE_API_KEY not found on .env')
 
         for asset in assets:
-            # fetch api
-            self.raw_dataframe[asset] = self.fetch_api(asset)
-            # add indicators
-            # split into train and test dfs
-            # save to csv files
-            # create key inside self.df with asset's name
-            self.train_dataframe[asset] = {}
-            self.test_dataframe[asset] = {}
-            # read this csv files to avoid ray indexing issue
+            print('> Fetching {} dataframe'.format(asset))
 
-        print(self.raw_dataframe)
+            self.raw_dataframe[asset] = self.__fetch_api(asset)
 
-    def fetch_api(self, asset: str) -> pd.DataFrame:
+            self.raw_dataframe[asset] = self.__add_indicators(asset)
+
+            self.train_dataframe[asset], self.test_dataframe[asset] = self.__split_dataframes(
+                asset)
+
+            print('> Caching {} dataframe'.format(asset))
+
+            self.__save_complete_dataframe_to_csv(asset)
+
+    def __fetch_api(self, asset: str) -> ray_data.Dataset:
         """Fetch the CryptoCompare API and return historical prices for a given asset
 
             Parameters:
@@ -85,13 +95,11 @@ class Market:
                 raw_dataframe (pandas.Dataframe): The API 'Data' key response converted to a pandas Dataframe
         """
 
-        print('> Fetching {} dataset'.format(asset))
-
         path_to_raw_dataframe = 'data/raw_dataframe_{}.csv'.format(
             asset)
 
         if os.path.exists(path_to_raw_dataframe):
-            raw_dataframe = pd.read_csv(path_to_raw_dataframe)
+            raw_dataframe = ray_data.read_csv(path_to_raw_dataframe)
 
             return raw_dataframe
 
@@ -109,16 +117,51 @@ class Market:
                 raise AssertionError(json_response['Message'])
 
             result = json_response['Data']
-            raw_dataframe = pd.DataFrame(result)
 
-            to_datetime_arg = raw_dataframe['time']
-            raw_dataframe.drop(['time', 'conversionType',
-                               'conversionSymbol'], axis=1, inplace=True)
+            pandas_dataframe = pd.DataFrame(result)
+            to_datetime_arg = pandas_dataframe['time']
+            pandas_dataframe.drop(['time', 'conversionType',
+                                   'conversionSymbol'], axis=1, inplace=True)
 
-            raw_dataframe['Date'] = pd.to_datetime(
+            pandas_dataframe['Date'] = pd.to_datetime(
                 arg=to_datetime_arg, utc=True, unit='s')
 
+            raw_dataframe = ray_data.from_pandas(pandas_dataframe)
+
             return raw_dataframe
+
+    # TODO
+    def __add_indicators(self, asset: str) -> ray_data.Dataset:
+        """Get the `self.raw_dataframe` dataframe and adds the market indicators for the given timeserie.
+
+            Returns:
+                raw_dataframe (pandas.DataFrame): A new dataframe based on `self.raw_dataframe` but with the indicators on it"""
+        dataframe_with_indicators = {}
+        dataframe_with_indicators[asset] = pd.DataFrame()
+        return dataframe_with_indicators[asset]
+
+    # TODO
+    def __split_dataframes(self, asset: str) -> tuple[ray_data.Dataset, ray_data.Dataset]:
+        """Split a dataframe for a selected asset into train_dataframe and test_dataframe
+
+            Parameters:
+                asset (str): asset name
+
+            Returns:
+                train_dataframe (ray.data.Dataset): A dataset containing the data to train
+                test_dataframe (ray.data.Dataset): A dataset containing the data to test"""
+        return ray_data.range(2), ray_data.range(2)
+
+    # TODO
+    def __save_complete_dataframe_to_csv(self, asset: str) -> None:
+        """Save the dataframe with prices and indicators to a csv file to speed up future runnings
+
+            Parameters:
+                asset (str): The asset name
+
+            Returns:
+                None"""
+        pass
 
 
 class Wallet:
