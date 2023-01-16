@@ -21,6 +21,7 @@ import requests
 from dotenv import load_dotenv
 from gym import spaces
 from ray import data as ray_data
+from ta import add_all_ta_features
 
 CONFIG_SPEC_CONSTANTS = {
     "candlestick_width": {  # constants
@@ -85,7 +86,7 @@ class Market:
 
             self.__save_complete_dataframe_to_csv(asset)
 
-    def __fetch_api(self, asset: str) -> ray_data.Dataset:
+    def __fetch_api(self, asset: str) -> pd.DataFrame:
         """Fetch the CryptoCompare API and return historical prices for a given asset
 
             Parameters:
@@ -99,7 +100,7 @@ class Market:
             asset)
 
         if os.path.exists(path_to_raw_dataframe):
-            raw_dataframe = ray_data.read_csv(path_to_raw_dataframe)
+            raw_dataframe = pd.read_csv(path_to_raw_dataframe)
 
             return raw_dataframe
 
@@ -128,7 +129,9 @@ class Market:
 
             raw_dataframe = ray_data.from_pandas(pandas_dataframe)
 
-            return raw_dataframe
+            print(pandas_dataframe.keys)
+
+            return pandas_dataframe
 
     # TODO
     def __add_indicators(self, asset: str) -> ray_data.Dataset:
@@ -137,7 +140,9 @@ class Market:
             Returns:
                 raw_dataframe (pandas.DataFrame): A new dataframe based on `self.raw_dataframe` but with the indicators on it"""
         dataframe_with_indicators = {}
-        dataframe_with_indicators[asset] = pd.DataFrame()
+        dataframe_with_indicators[asset] = add_all_ta_features(
+            self.raw_dataframe[asset], open="open", high="high", low="low", close="close", volume="volumeto")
+        print(dataframe_with_indicators[asset])
         return dataframe_with_indicators[asset]
 
     # TODO
