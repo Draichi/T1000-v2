@@ -51,13 +51,14 @@ class Market:
 
     def __init__(self, exchange: str, assets: list[str], granularity: str, currency: str, datapoints: int) -> None:
         self.df_features = {}
-        self.raw_dataframe = {}
+        self.dataframes: dict[str, pd.DataFrame] = {}
         self.train_dataframe = {}
         self.test_dataframe = {}
         self.exchange = exchange
         self.granularity = granularity
         self.currency = currency
         self.datapoints = datapoints
+
         self.__get_dataframes(assets)
 
     def __get_dataframes(self, assets: list[str]) -> None:
@@ -75,9 +76,9 @@ class Market:
         for asset in assets:
             print('> Fetching {} dataframe'.format(asset))
 
-            self.raw_dataframe[asset] = self.__fetch_api(asset)
+            self.dataframes[asset] = self.__fetch_api(asset)
 
-            self.raw_dataframe[asset] = self.__add_indicators(asset)
+            self.dataframes[asset] = self.__add_indicators(asset)
 
             self.train_dataframe[asset], self.test_dataframe[asset] = self.__split_dataframes(
                 asset)
@@ -133,19 +134,16 @@ class Market:
 
             return pandas_dataframe
 
-    # TODO
-    def __add_indicators(self, asset: str) -> ray_data.Dataset:
+    def __add_indicators(self, asset: str) -> pd.DataFrame:
         """Get the `self.raw_dataframe` dataframe and adds the market indicators for the given timeserie.
 
             Returns:
                 raw_dataframe (pandas.DataFrame): A new dataframe based on `self.raw_dataframe` but with the indicators on it"""
         dataframe_with_indicators = {}
         dataframe_with_indicators[asset] = add_all_ta_features(
-            self.raw_dataframe[asset], open="open", high="high", low="low", close="close", volume="volumeto")
-        print(dataframe_with_indicators[asset])
+            self.dataframes[asset], open="open", high="high", low="low", close="close", volume="volumeto")
         return dataframe_with_indicators[asset]
 
-    # TODO
     def __split_dataframes(self, asset: str) -> tuple[ray_data.Dataset, ray_data.Dataset]:
         """Split a dataframe for a selected asset into train_dataframe and test_dataframe
 
@@ -155,7 +153,9 @@ class Market:
             Returns:
                 train_dataframe (ray.data.Dataset): A dataset containing the data to train
                 test_dataframe (ray.data.Dataset): A dataset containing the data to test"""
-        return ray_data.range(2), ray_data.range(2)
+        ray_dataframe = ray_data.from_pandas(self.dataframes[asset])
+        train, test = ray_dataframe.train_test_split(test_size=0.25)
+        return train, test
 
     # TODO
     def __save_complete_dataframe_to_csv(self, asset: str) -> None:
