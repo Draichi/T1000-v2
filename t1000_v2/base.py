@@ -157,7 +157,6 @@ class Market:
         train, test = ray_dataframe.train_test_split(test_size=0.25)
         return train, test
 
-    # TODO
     def __save_complete_dataframe_to_csv(self, asset: str) -> None:
         """Save the dataframe with prices and indicators to a csv file to speed up future runnings
 
@@ -166,7 +165,9 @@ class Market:
 
             Returns:
                 None"""
-        pass
+        path_to_dataframe = 't1000_v2/data/complete_{}_dataframe.csv'.format(
+            asset)
+        self.dataframes[asset].to_csv(path_to_dataframe)
 
 
 class Wallet:
