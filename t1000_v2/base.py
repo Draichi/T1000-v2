@@ -54,6 +54,7 @@ class Market:
         self.dataframes: dict[str, pd.DataFrame] = {}
         self.train_dataframe = {}
         self.test_dataframe = {}
+        self.first_prices: dict[str, float] = {}
         self.exchange = exchange
         self.granularity = granularity
         self.currency = currency
@@ -171,22 +172,34 @@ class Market:
 
 
 class Wallet:
-    def __init__(self, net_worth: int, balance: int) -> None:
+    def __init__(self, net_worth: int, balance: int, assets: list[str]) -> None:
         self.net_worth = net_worth
         self.balance = balance
         self.cost = 0
         self.sales = 0
-        self.shares_bought_per_asset = {}
-        self.shares_sold_per_asset = {}
-        self.shares_held_per_asset = {}
+        self.shares_bought_per_asset: dict[str, float] = {}
+        self.shares_sold_per_asset: dict[str, float] = {}
+        self.shares_held_per_asset: dict[str, float] = {}
+        self.initial_bought = {}
+        self.initial_balance = 0
+        self.trades: dict[str, list] = {}
+        self.assets: list[str] = assets
+
+        def __reset_trades(self):
+            for asset in self.assets_list:
+                self.trades[asset] = []
 
 
 class ExchangeEnvironment(gym.Env, Wallet, Market):
-    def __init__(self, net_worth: int, balance: int, assets: list, currency: str, exchange: str, granularity: str, datapoints: int) -> None:
-        Wallet.__init__(self, net_worth, balance)
+    def __init__(self, net_worth: int, balance: int, assets: list, currency: str,
+                 exchange: str, granularity: str, datapoints: int) -> None:
+        Wallet.__init__(self, net_worth=net_worth,
+                        balance=balance, assets=assets)
         Market.__init__(self, exchange=exchange, assets=assets, currency=currency,
                         datapoints=datapoints, granularity=granularity)
 
+        self.current_step: int = 0
+        self.current_price: float = 0
         # 4,3 = (balance, cost, sales, net_worth) + (shares bought, shares sold, shares held foreach asset)
         # observation_length = len(self.df_features[assets[0]].columns) + 4 + 3
 
@@ -207,6 +220,12 @@ class ExchangeEnvironment(gym.Env, Wallet, Market):
         #     high=np.finfo(np.float32).max,
         #     shape=observation_space,
         #     dtype=np.float16)
+
+    def __compute_initial_bought(self):
+        """spread the initial account balance through all assets"""
+        for asset in self.assets:
+            self.initial_bought[asset] = 1/len(self.assets) * \
+                self.initial_balance / self.first_prices[asset]
 
     def get_HODL_strategy(self) -> None:
         pass
