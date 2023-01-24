@@ -237,7 +237,15 @@ class ExchangeEnvironment(gym.Env, Wallet, Market):
         pass
 
     def reset(self):
-        pass
+        """Reset the ExchangeEnvironment to it's initial state"""
+        self.current_step = 0
+        self.reset_balance()
+        self.reset_net_worth()
+        self.reset_shares()
+        self.reset_trades()
+        self.reset_cost_and_sales()
+
+        return self.__get_next_observation()
 
     def close(self):
         pass
