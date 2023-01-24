@@ -227,6 +227,29 @@ class ExchangeEnvironment(gym.Env, Wallet, Market):
             self.initial_bought[asset] = 1/len(self.assets) * \
                 self.initial_balance / self.first_prices[asset]
 
+    def __get_next_observation(self):
+        empty_observation_array = np.empty((0, self.observation_length), int)
+        for asset in self.assets:
+            # TODO
+            # - popular df_features em Market
+            current_market_state = np.array(
+                self.df_features[asset].values[self.current_step])
+            current_state = np.array([np.append(current_market_state, [
+                self.balance,
+                self.cost,
+                self.sales,
+                self.net_worth,
+                self.shares_bought_per_asset[asset],
+                self.shares_sold_per_asset[asset],
+                self.shares_held_per_asset[asset]
+            ])])
+            next_observation = np.append(
+                empty_observation_array, current_state, axis=0)
+
+            print('> next observation:', next_observation)
+
+            return next_observation
+
     def get_HODL_strategy(self) -> None:
         pass
 
