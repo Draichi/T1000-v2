@@ -60,7 +60,7 @@ class Market:
         self.currency = currency
         self.datapoints = datapoints
 
-        self.__get_dataframes(assets)
+        # self.__get_dataframes(assets)
 
     def __get_dataframes(self, assets: list[str]) -> None:
         """Get the dataframe for each asset
@@ -170,56 +170,88 @@ class Market:
             asset)
         self.dataframes[asset].to_csv(path_to_dataframe)
 
+    # TODO
+    def __populate_df_features(self, asset: str) -> None:
+        pass
+
 
 class Wallet:
-    def __init__(self, net_worth: int, balance: int, assets: list[str]) -> None:
-        self.net_worth = net_worth
+    def __init__(self, net_worth: float, balance: float, assets: list[str]) -> None:
+        self._net_worth = net_worth
+        self.initial_balance = balance
         self.balance = balance
-        self.cost = 0
-        self.sales = 0
+        self.cost: float = 0
+        self.sales: float = 0
         self.shares_bought_per_asset: dict[str, float] = {}
         self.shares_sold_per_asset: dict[str, float] = {}
         self.shares_held_per_asset: dict[str, float] = {}
         self.initial_bought = {}
-        self.initial_balance = 0
         self.trades: dict[str, list] = {}
         self.assets: list[str] = assets
 
-        def __reset_trades(self):
-            for asset in self.assets_list:
-                self.trades[asset] = []
+    @property
+    def net_worth(self) -> float:
+        """Returs the foo var"""
+        return self._net_worth
+
+    @net_worth.setter
+    def net_worth(self, value: float):
+        self._net_worth = value
+
+    def reset_net_worth(self):
+        self.net_worth = self.initial_balance
+
+    def reset_shares(self):
+        for asset in self.assets:
+            self.shares_bought_per_asset[asset] = 0
+            self.shares_held_per_asset[asset] = 0
+            self.shares_sold_per_asset[asset] = 0
+
+    def reset_balance(self):
+        self.balance = self.initial_balance
+
+    def reset_trades(self):
+        for asset in self.assets:
+            self.trades[asset] = []
+
+    def reset_cost_and_sales(self):
+        self.cost = 0
+        self.sales = 0
 
 
-class ExchangeEnvironment(gym.Env, Wallet, Market):
+class ExchangeEnvironment(Wallet, Market, gym.Env):
     def __init__(self, net_worth: int, balance: int, assets: list, currency: str,
                  exchange: str, granularity: str, datapoints: int) -> None:
+
         Wallet.__init__(self, net_worth=net_worth,
                         balance=balance, assets=assets)
+
         Market.__init__(self, exchange=exchange, assets=assets, currency=currency,
                         datapoints=datapoints, granularity=granularity)
 
         self.current_step: int = 0
         self.current_price: float = 0
         # 4,3 = (balance, cost, sales, net_worth) + (shares bought, shares sold, shares held foreach asset)
-        # observation_length = len(self.df_features[assets[0]].columns) + 4 + 3
+        self.observation_length = len(
+            self.df_features[assets[0]].columns) + 4 + 3
 
         # action space = buy and sell for each asset, pĺus hold position
-        # action_space = 1 + len(assets) * 2
+        action_space = 1 + len(assets) * 2
 
         # obs space = (num assets, indicator + (balance, cost, sales, net_worth) + (shares bought, shares sold, shares held foreach asset))
-        # observation_space = (len(assets),
-        #                      observation_length)
+        observation_space = (len(assets),
+                             self.observation_length)
 
-        # self.action_space = spaces.Box(
-        #     low=np.array([0, 0]),
-        #     high=np.array([action_space, 1]),
-        #     dtype=np.float16)
+        self.action_space = spaces.Box(
+            low=np.array([0, 0]),
+            high=np.array([action_space, 1]),
+            dtype=np.float16)
 
-        # self.observation_space = spaces.Box(
-        #     low=-np.finfo(np.float32).max,
-        #     high=np.finfo(np.float32).max,
-        #     shape=observation_space,
-        #     dtype=np.float16)
+        self.observation_space = spaces.Box(
+            low=-np.finfo(np.float32).max,
+            high=np.finfo(np.float32).max,
+            shape=observation_space,
+            dtype=np.float16)
 
     def __compute_initial_bought(self):
         """spread the initial account balance through all assets"""
@@ -351,3 +383,4 @@ class TradingFloor(ExchangeEnvironment, Brain, Renderer):
 
 
 T1000 = TradingFloor(['BTC'])
+T1000.reset()
