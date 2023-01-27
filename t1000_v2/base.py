@@ -60,7 +60,7 @@ class Market:
         self.currency = currency
         self.datapoints = datapoints
 
-        # self.__get_dataframes(assets)
+        self.__get_dataframes(assets)
 
     def __get_dataframes(self, assets: list[str]) -> None:
         """Get the dataframe for each asset
@@ -83,6 +83,9 @@ class Market:
 
             self.train_dataframe[asset], self.test_dataframe[asset] = self.__split_dataframes(
                 asset)
+
+            self.df_features[asset] = self.__populate_df_features(
+                asset, 'train')
 
             print('> Caching {} dataframe'.format(asset))
 
@@ -131,8 +134,6 @@ class Market:
 
             raw_dataframe = ray_data.from_pandas(pandas_dataframe)
 
-            print(pandas_dataframe.keys)
-
             return pandas_dataframe
 
     def __add_indicators(self, asset: str) -> pd.DataFrame:
@@ -145,7 +146,7 @@ class Market:
             self.dataframes[asset], open="open", high="high", low="low", close="close", volume="volumeto")
         return dataframe_with_indicators[asset]
 
-    def __split_dataframes(self, asset: str) -> tuple[ray_data.Dataset, ray_data.Dataset]:
+    def __split_dataframes(self, asset: str) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Split a dataframe for a selected asset into train_dataframe and test_dataframe
 
             Parameters:
@@ -156,7 +157,7 @@ class Market:
                 test_dataframe (ray.data.Dataset): A dataset containing the data to test"""
         ray_dataframe = ray_data.from_pandas(self.dataframes[asset])
         train, test = ray_dataframe.train_test_split(test_size=0.25)
-        return train, test
+        return train.to_pandas(), test.to_pandas()
 
     def __save_complete_dataframe_to_csv(self, asset: str) -> None:
         """Save the dataframe with prices and indicators to a csv file to speed up future runnings
@@ -170,9 +171,14 @@ class Market:
             asset)
         self.dataframes[asset].to_csv(path_to_dataframe)
 
-    # TODO
-    def __populate_df_features(self, asset: str) -> None:
-        pass
+    def __populate_df_features(self, asset: str, mode: str) -> None:
+        if mode == 'train':
+            return self.train_dataframe[asset].loc[:,
+                                                   self.train_dataframe[asset].columns != 'Date']
+
+        elif mode == 'test':
+            return self.test_dataframe[asset].loc[:,
+                                                  self.test_dataframe[asset].columns != 'Date']
 
 
 class Wallet:
@@ -262,8 +268,6 @@ class ExchangeEnvironment(Wallet, Market, gym.Env):
     def __get_next_observation(self):
         empty_observation_array = np.empty((0, self.observation_length), int)
         for asset in self.assets:
-            # TODO
-            # - popular df_features em Market
             current_market_state = np.array(
                 self.df_features[asset].values[self.current_step])
             current_state = np.array([np.append(current_market_state, [
