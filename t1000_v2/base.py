@@ -182,7 +182,8 @@ class Market:
 
 
 class Wallet:
-    def __init__(self, net_worth: float, balance: float, assets: list[str]) -> None:
+    def __init__(self, net_worth: float, balance: float, assets: list[str], exchange_commission: float) -> None:
+        self.exchange_commission = exchange_commission
         self._net_worth = net_worth
         self.initial_balance = balance
         self.balance = balance
@@ -204,17 +205,25 @@ class Wallet:
     def net_worth(self, value: float):
         self._net_worth = value
 
-    def reset_net_worth(self):
+    def __reset_net_worth(self):
         self.net_worth = self.initial_balance
 
-    def reset_shares(self):
+    def __reset_all_shares(self):
         for asset in self.assets:
             self.shares_bought_per_asset[asset] = 0
             self.shares_held_per_asset[asset] = 0
             self.shares_sold_per_asset[asset] = 0
 
+    def reset_shares_bought_and_sold(self):
+        for asset in self.assets:
+            self.shares_bought_per_asset[asset] = 0
+            self.shares_sold_per_asset[asset] = 0
+
     def reset_balance(self):
         self.balance = self.initial_balance
+        self.reset_cost_and_sales()
+        self.__reset_net_worth()
+        self.__reset_all_shares()
 
     def reset_trades(self):
         for asset in self.assets:
@@ -224,13 +233,31 @@ class Wallet:
         self.cost = 0
         self.sales = 0
 
+    def __amount_can_be_spent(self, amount: float) -> bool:
+        """Calculate if has balance to spend"""
+        if self.balance >= self.balance * amount * (1 + self.exchange_commission):
+            return True
+        else:
+            return False
+
+    def open_trade_ticket(self, action_type: float, action_strength: float):
+        """Check if it's possible to buy or sell"""
+        is_bought = False
+        is_sold = False
+        is_possible_to_buy = self.__amount_can_be_spent(amount=action_strength)
+        for index, asset in enumerate(self.assets * 2):
+            if action_type < index / 2 + 1 and is_possible_to_buy and not is_bought:
+                is_bought = True
+            elif action_type < index + 1 and not is_sold:
+                is_sold = True
+
 
 class ExchangeEnvironment(Wallet, Market, gym.Env):
     def __init__(self, net_worth: int, balance: int, assets: list, currency: str,
-                 exchange: str, granularity: str, datapoints: int) -> None:
+                 exchange: str, granularity: str, datapoints: int, exchange_commission: float) -> None:
 
         Wallet.__init__(self, net_worth=net_worth,
-                        balance=balance, assets=assets)
+                        balance=balance, assets=assets, exchange_commission=exchange_commission)
 
         Market.__init__(self, exchange=exchange, assets=assets, currency=currency,
                         datapoints=datapoints, granularity=granularity)
@@ -286,23 +313,42 @@ class ExchangeEnvironment(Wallet, Market, gym.Env):
 
             return next_observation
 
+    def __take_action(self, action: list[float]):
+        """Take an action within the environment"""
+        action_type = action[0]
+        action_strength = action[1]
+        # TODO
+        # - compute_current_price()
+
+        """bounds of action_space doesn't seem to work, so this line is necessary to not overflow actions"""
+        if 0 < action_strength <= 1 and action_type > 0:
+            # TODO
+            # - reset_shares_bought_n_sold()
+            # - reset_cost_n_sales()
+            # - buy_or_sell(action_type=action_type, amount=amount)
+            # - compute_trade()
+            self.reset_shares_bought_and_sold()
+            self.reset_cost_and_sales()
+
     def get_HODL_strategy(self) -> None:
         pass
 
     def compute_reward(self) -> None:
         pass
 
-    def step(self):
-        pass
+    def step(self, action: list[float]):
+        """Execute one time step within the environment"""
+        # TODO
+        self.__take_action(action)
+        self.current_step += 1
 
     def reset(self):
         """Reset the ExchangeEnvironment to it's initial state"""
         self.current_step = 0
         self.reset_balance()
-        self.reset_net_worth()
-        self.reset_shares()
         self.reset_trades()
-        self.reset_cost_and_sales()
+        # TODO
+        # - get_first_prices
 
         return self.__get_next_observation()
 
@@ -359,7 +405,7 @@ class TradingFloor(ExchangeEnvironment, Brain, Renderer):
 
     def __init__(self, assets: list[str], checkpoint_path='', algorithm='PPO', currency='USD', granularity='hour', datapoints=150, initial_balance=300, exchange_commission=0.00075, exchange='CCCAGG') -> None:
         ExchangeEnvironment.__init__(
-            self, net_worth=initial_balance, assets=assets, currency=currency, exchange=exchange, granularity=granularity, datapoints=datapoints, balance=initial_balance)
+            self, net_worth=initial_balance, assets=assets, currency=currency, exchange=exchange, granularity=granularity, datapoints=datapoints, balance=initial_balance, exchange_commission=exchange_commission)
         Brain.__init__(self, 1e-4)
         Renderer.__init__(self)
         self.assets = assets
