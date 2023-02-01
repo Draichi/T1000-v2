@@ -240,7 +240,7 @@ class Wallet:
         else:
             return False
 
-    def open_trade_ticket(self, action_type: float, action_strength: float):
+    def trade(self, action_type: float, action_strength: float):
         """Check if it's possible to buy or sell"""
         is_bought = False
         is_sold = False
