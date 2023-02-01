@@ -49,24 +49,24 @@ class Market:
     CRYPTOCOMPARE_API_KEY = os.getenv('CRYPTOCOMPARE_API_KEY')
     exchange_commission = 0.00075
 
-    def __init__(self, exchange: str, assets: list[str], granularity: str, currency: str, datapoints: int) -> None:
+    def __init__(self, exchange: str, assets: list[str], granularity: str, currency: str, data_points: int) -> None:
         self.df_features = {}
-        self.dataframes: dict[str, pd.DataFrame] = {}
-        self.train_dataframe = {}
-        self.test_dataframe = {}
+        self.data_frames: dict[str, pd.DataFrame] = {}
+        self.train_data_frame = {}
+        self.test_data_frame = {}
         self.first_prices: dict[str, float] = {}
         self.exchange = exchange
         self.granularity = granularity
         self.currency = currency
-        self.datapoints = datapoints
+        self.data_points = data_points
 
-        self.__get_dataframes(assets)
+        self.__get_data_frames(assets)
 
-    def __get_dataframes(self, assets: list[str]) -> None:
-        """Get the dataframe for each asset
+    def __get_data_frames(self, assets: list[str]) -> None:
+        """Get the data_frame for each asset
 
             Parameters:
-                assets (list[str]): The list of assets to get the dataframe. Example: `["BTC", "ETH"]`
+                assets (list[str]): The list of assets to get the data_frame. Example: `["BTC", "ETH"]`
 
             Returns:
                 None"""
@@ -75,21 +75,21 @@ class Market:
             raise ImportError('CRYPTOCOMPARE_API_KEY not found on .env')
 
         for asset in assets:
-            print('> Fetching {} dataframe'.format(asset))
+            print('> Fetching {} data_frame'.format(asset))
 
-            self.dataframes[asset] = self.__fetch_api(asset)
+            self.data_frames[asset] = self.__fetch_api(asset)
 
-            self.dataframes[asset] = self.__add_indicators(asset)
+            self.data_frames[asset] = self.__add_indicators(asset)
 
-            self.train_dataframe[asset], self.test_dataframe[asset] = self.__split_dataframes(
+            self.train_data_frame[asset], self.test_data_frame[asset] = self.__split_data_frames(
                 asset)
 
             self.df_features[asset] = self.__populate_df_features(
                 asset, 'train')
 
-            print('> Caching {} dataframe'.format(asset))
+            print('> Caching {} data_frame'.format(asset))
 
-            self.__save_complete_dataframe_to_csv(asset)
+            self.__save_complete_data_frame_to_csv(asset)
 
     def __fetch_api(self, asset: str) -> pd.DataFrame:
         """Fetch the CryptoCompare API and return historical prices for a given asset
@@ -98,87 +98,87 @@ class Market:
                 asset (str): The asset name. For a full asset list check: https://min-api.cryptocompare.com/documentation?key=Other&cat=allCoinsWithContentEndpoint
 
             Returns:
-                raw_dataframe (pandas.Dataframe): The API 'Data' key response converted to a pandas Dataframe
+                raw_data_frame (pandas.Dataframe): The API 'Data' key response converted to a pandas Dataframe
         """
 
-        path_to_raw_dataframe = 'data/raw_dataframe_{}.csv'.format(
+        path_to_raw_data_frame = 'data/raw_data_frame_{}.csv'.format(
             asset)
 
-        if os.path.exists(path_to_raw_dataframe):
-            raw_dataframe = pd.read_csv(path_to_raw_dataframe)
+        if os.path.exists(path_to_raw_data_frame):
+            raw_data_frame = pd.read_csv(path_to_raw_data_frame)
 
-            return raw_dataframe
+            return raw_data_frame
 
         else:
             headers = {'User-Agent': 'Mozilla/5.0',
                        'authorization': 'Apikey {}'.format(self.CRYPTOCOMPARE_API_KEY)}
             url = 'https://min-api.cryptocompare.com/data/histo{}?fsym={}&tsym={}&limit={}&e={}'.format(
-                self.granularity, asset, self.currency, self.datapoints, self.exchange)
+                self.granularity, asset, self.currency, self.data_points, self.exchange)
             response = requests.get(url, headers=headers)
             json_response = response.json()
             status = json_response['Response']
 
             if status == "Error":
-                print('Error fetching {} dataframe'.format(asset))
+                print('Error fetching {} data_frame'.format(asset))
                 raise AssertionError(json_response['Message'])
 
             result = json_response['Data']
 
-            pandas_dataframe = pd.DataFrame(result)
-            to_datetime_arg = pandas_dataframe['time']
-            pandas_dataframe.drop(['time', 'conversionType',
+            pandas_data_frame = pd.DataFrame(result)
+            to_datetime_arg = pandas_data_frame['time']
+            pandas_data_frame.drop(['time', 'conversionType',
                                    'conversionSymbol'], axis=1, inplace=True)
 
-            pandas_dataframe['Date'] = pd.to_datetime(
+            pandas_data_frame['Date'] = pd.to_datetime(
                 arg=to_datetime_arg, utc=True, unit='s')
 
-            raw_dataframe = ray_data.from_pandas(pandas_dataframe)
+            raw_data_frame = ray_data.from_pandas(pandas_data_frame)
 
-            return pandas_dataframe
+            return pandas_data_frame
 
     def __add_indicators(self, asset: str) -> pd.DataFrame:
-        """Get the `self.raw_dataframe` dataframe and adds the market indicators for the given timeserie.
+        """Get the `self.raw_data_frame` data_frame and adds the market indicators for the given time series.
 
             Returns:
-                raw_dataframe (pandas.DataFrame): A new dataframe based on `self.raw_dataframe` but with the indicators on it"""
-        dataframe_with_indicators = {}
-        dataframe_with_indicators[asset] = add_all_ta_features(
-            self.dataframes[asset], open="open", high="high", low="low", close="close", volume="volumeto")
-        return dataframe_with_indicators[asset]
+                raw_data_frame (pandas.DataFrame): A new data_frame based on `self.raw_data_frame` but with the indicators on it"""
+        data_frame_with_indicators = {}
+        data_frame_with_indicators[asset] = add_all_ta_features(
+            self.data_frames[asset], open="open", high="high", low="low", close="close", volume="volumeto")
+        return data_frame_with_indicators[asset]
 
-    def __split_dataframes(self, asset: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-        """Split a dataframe for a selected asset into train_dataframe and test_dataframe
+    def __split_data_frames(self, asset: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Split a data_frame for a selected asset into train_data_frame and test_data_frame
 
             Parameters:
                 asset (str): asset name
 
             Returns:
-                train_dataframe (ray.data.Dataset): A dataset containing the data to train
-                test_dataframe (ray.data.Dataset): A dataset containing the data to test"""
-        ray_dataframe = ray_data.from_pandas(self.dataframes[asset])
-        train, test = ray_dataframe.train_test_split(test_size=0.25)
+                train_data_frame (ray.data.Dataset): A dataset containing the data to train
+                test_data_frame (ray.data.Dataset): A dataset containing the data to test"""
+        ray_data_frame = ray_data.from_pandas(self.data_frames[asset])
+        train, test = ray_data_frame.train_test_split(test_size=0.25)
         return train.to_pandas(), test.to_pandas()
 
-    def __save_complete_dataframe_to_csv(self, asset: str) -> None:
-        """Save the dataframe with prices and indicators to a csv file to speed up future runnings
+    def __save_complete_data_frame_to_csv(self, asset: str) -> None:
+        """Save the data_frame with prices and indicators to a csv file to speed up future runnings
 
             Parameters:
                 asset (str): The asset name
 
             Returns:
                 None"""
-        path_to_dataframe = 't1000_v2/data/complete_{}_dataframe.csv'.format(
+        path_to_data_frame = 't1000_v2/data/complete_{}_data_frame.csv'.format(
             asset)
-        self.dataframes[asset].to_csv(path_to_dataframe)
+        self.data_frames[asset].to_csv(path_to_data_frame)
 
     def __populate_df_features(self, asset: str, mode: str) -> None:
         if mode == 'train':
-            return self.train_dataframe[asset].loc[:,
-                                                   self.train_dataframe[asset].columns != 'Date']
+            return self.train_data_frame[asset].loc[:,
+                                                    self.train_data_frame[asset].columns != 'Date']
 
         elif mode == 'test':
-            return self.test_dataframe[asset].loc[:,
-                                                  self.test_dataframe[asset].columns != 'Date']
+            return self.test_data_frame[asset].loc[:,
+                                                   self.test_data_frame[asset].columns != 'Date']
 
 
 class Wallet:
@@ -198,7 +198,7 @@ class Wallet:
 
     @property
     def net_worth(self) -> float:
-        """Returs the foo var"""
+        """Returns the foo var"""
         return self._net_worth
 
     @net_worth.setter
@@ -254,13 +254,13 @@ class Wallet:
 
 class ExchangeEnvironment(Wallet, Market, gym.Env):
     def __init__(self, net_worth: int, balance: int, assets: list, currency: str,
-                 exchange: str, granularity: str, datapoints: int, exchange_commission: float) -> None:
+                 exchange: str, granularity: str, data_points: int, exchange_commission: float) -> None:
 
         Wallet.__init__(self, net_worth=net_worth,
                         balance=balance, assets=assets, exchange_commission=exchange_commission)
 
         Market.__init__(self, exchange=exchange, assets=assets, currency=currency,
-                        datapoints=datapoints, granularity=granularity)
+                        data_points=data_points, granularity=granularity)
 
         self.current_step: int = 0
         self.current_price: float = 0
@@ -268,7 +268,7 @@ class ExchangeEnvironment(Wallet, Market, gym.Env):
         self.observation_length = len(
             self.df_features[assets[0]].columns) + 4 + 3
 
-        # action space = buy and sell for each asset, pĺus hold position
+        # action space = buy and sell for each asset, plus hold position
         action_space = 1 + len(assets) * 2
 
         # obs space = (num assets, indicator + (balance, cost, sales, net_worth) + (shares bought, shares sold, shares held foreach asset))
@@ -403,22 +403,22 @@ class TradingFloor(ExchangeEnvironment, Brain, Renderer):
 
     """
 
-    def __init__(self, assets: list[str], checkpoint_path='', algorithm='PPO', currency='USD', granularity='hour', datapoints=150, initial_balance=300, exchange_commission=0.00075, exchange='CCCAGG') -> None:
+    def __init__(self, assets: list[str], checkpoint_path='', algorithm='PPO', currency='USD', granularity='hour', data_points=150, initial_balance=300, exchange_commission=0.00075, exchange='CCCAGG') -> None:
         ExchangeEnvironment.__init__(
-            self, net_worth=initial_balance, assets=assets, currency=currency, exchange=exchange, granularity=granularity, datapoints=datapoints, balance=initial_balance, exchange_commission=exchange_commission)
+            self, net_worth=initial_balance, assets=assets, currency=currency, exchange=exchange, granularity=granularity, data_points=data_points, balance=initial_balance, exchange_commission=exchange_commission)
         Brain.__init__(self, 1e-4)
         Renderer.__init__(self)
         self.assets = assets
         self.algorithm = algorithm
         self.currency = currency
         self.granularity = granularity
-        self.datapoints = datapoints
+        self.data_points = data_points
         self.config_spec = {}
 
     def generate_config_spec(self):
         pass
 
-    def add_dataframes_to_config_spec(self):
+    def add_data_frames_to_config_spec(self):
         pass
 
     def check_variables_integrity(self) -> None:
@@ -428,8 +428,8 @@ class TradingFloor(ExchangeEnvironment, Brain, Renderer):
             raise ValueError("Incorrect 'currency' value")
         if type(self.granularity) != str:
             raise ValueError("Incorrect 'granularity' value")
-        if type(self.datapoints) != int or 1 > self.datapoints > 2000:
-            raise ValueError("Incorrect 'datapoints' value")
+        if type(self.data_points) != int or 1 > self.data_points > 2000:
+            raise ValueError("Incorrect 'data_points' value")
 
 
 T1000 = TradingFloor(['BTC'])
