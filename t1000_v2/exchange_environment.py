@@ -2,22 +2,18 @@ import gym
 import numpy as np
 from gym import spaces
 
-from .market import Market
+
 from .wallet import Wallet
 
 
-class ExchangeEnvironment(Wallet, Market, gym.Env):
+class ExchangeEnvironment(Wallet, gym.Env):
     def __init__(self, net_worth: int, balance: int, assets: list, currency: str,
                  exchange: str, granularity: str, data_points: int, exchange_commission: float) -> None:
 
         Wallet.__init__(self, net_worth=net_worth,
-                        balance=balance, assets=assets, exchange_commission=exchange_commission)
-
-        Market.__init__(self, exchange=exchange, assets=assets, currency=currency,
-                        data_points=data_points, granularity=granularity)
+                        balance=balance, assets=assets, exchange_commission=exchange_commission, exchange=exchange, granularity=granularity, data_points=data_points, currency=currency)
 
         self.current_step: int = 0
-        self.current_price: float = 0
         # 4,3 = (balance, cost, sales, net_worth) + (shares bought, shares sold, shares held foreach asset)
         self.observation_length = len(
             self.df_features[assets[0]].columns) + 4 + 3

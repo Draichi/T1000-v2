@@ -29,6 +29,7 @@ class Market:
         self.granularity = granularity
         self.currency = currency
         self.data_points = data_points
+        self.current_price_per_asset: dict[str, float] = {}
 
         self.__get_data_frames(assets)
 

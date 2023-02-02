@@ -1,5 +1,12 @@
-class Wallet:
-    def __init__(self, net_worth: float, balance: float, assets: list[str], exchange_commission: float) -> None:
+from .market import Market
+
+
+class Wallet(Market):
+    def __init__(self, net_worth: float, balance: float, assets: list[str], exchange_commission: float, exchange: str, currency: str, data_points: int, granularity: str) -> None:
+
+        Market.__init__(self, exchange=exchange, assets=assets, currency=currency,
+                        data_points=data_points, granularity=granularity)
+
         self.exchange_commission = exchange_commission
         self._net_worth = net_worth
         self.initial_balance = balance
@@ -31,6 +38,40 @@ class Wallet:
             self.shares_held_per_asset[asset] = 0
             self.shares_sold_per_asset[asset] = 0
 
+    def __buy(self, asset: str, amount: float) -> bool:
+        self.shares_bought_per_asset[asset] = self.balance * \
+            amount / self.current_price_per_asset[asset]
+
+        self.cost = self.shares_bought_per_asset[asset] * \
+            self.current_price_per_asset[asset] * \
+            (1 + self.exchange_commission)
+
+        self.shares_held_per_asset[asset] += self.shares_bought_per_asset[asset]
+
+        self.balance -= self.cost
+
+        return True
+
+    def __sell(self, asset: str, amount: float) -> bool:
+        self.shares_sold_per_asset[asset] = self.shares_held_per_asset[asset] * amount
+
+        self.sales = self.shares_sold_per_asset[asset] * \
+            self.current_price_per_asset[asset] * \
+            (1 + self.exchange_commission)
+
+        self.shares_held_per_asset[asset] -= self.shares_sold_per_asset[asset]
+
+        self.balance += self.sales
+
+        return True
+
+    def __amount_can_be_spent(self, amount: float) -> bool:
+        """Calculate if has balance to spend"""
+        if self.balance >= self.balance * amount * (1 + self.exchange_commission):
+            return True
+        else:
+            return False
+
     def reset_shares_bought_and_sold(self):
         for asset in self.assets:
             self.shares_bought_per_asset[asset] = 0
@@ -49,13 +90,6 @@ class Wallet:
     def reset_cost_and_sales(self):
         self.cost = 0
         self.sales = 0
-
-    def __amount_can_be_spent(self, amount: float) -> bool:
-        """Calculate if has balance to spend"""
-        if self.balance >= self.balance * amount * (1 + self.exchange_commission):
-            return True
-        else:
-            return False
 
     def trade(self, action_type: float, action_strength: float):
         """Check if it's possible to buy or sell"""
