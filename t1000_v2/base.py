@@ -82,7 +82,3 @@ class TradingFloor(ExchangeEnvironment, Brain, Renderer):
             raise ValueError("Incorrect 'granularity' value")
         if type(self.data_points) != int or 1 > self.data_points > 2000:
             raise ValueError("Incorrect 'data_points' value")
-
-
-T1000 = TradingFloor(['BTC'])
-T1000.reset()

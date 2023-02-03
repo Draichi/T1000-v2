@@ -59,8 +59,6 @@ class ExchangeEnvironment(Wallet, gym.Env):
             next_observation = np.append(
                 empty_observation_array, current_state, axis=0)
 
-            print('> next observation:', next_observation)
-
             return next_observation
 
     def __take_action(self, action: list[float]):

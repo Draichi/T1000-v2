@@ -7,6 +7,7 @@ Be creative! do whatever you want!
 - Start a web application
 - Import things from your .base module
 """
+from .base import TradingFloor
 
 
 def main():  # pragma: no cover
@@ -25,4 +26,5 @@ def main():  # pragma: no cover
         * List all available tasks
         * Run an application (Flask, FastAPI, Django, etc.)
     """
-    print("This will do something")
+    T1000 = TradingFloor(['BTC'])
+    T1000.reset()
