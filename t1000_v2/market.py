@@ -17,7 +17,7 @@ class Market:
         - granularity (str): how to fetch the data. Options: `hour`, `day`."""
     load_dotenv()
     CRYPTOCOMPARE_API_KEY = os.getenv('CRYPTOCOMPARE_API_KEY')
-    exchange_commission = 0.00075
+    PATH_TO_COMPLETE_DATA_FRAME = 't1000_v2/data/complete_{}_data_frame.csv'
 
     def __init__(self, exchange: str, assets: list[str], granularity: str, currency: str, data_points: int) -> None:
         self.df_features = {}
@@ -46,21 +46,26 @@ class Market:
             raise ImportError('CRYPTOCOMPARE_API_KEY not found on .env')
 
         for asset in assets:
-            print('> Fetching {} data_frame'.format(asset))
+            complete_df_path = self.PATH_TO_COMPLETE_DATA_FRAME.format(
+                asset)
 
-            self.data_frames[asset] = self.__fetch_api(asset)
+            if os.path.exists(complete_df_path):
+                print('> Fetching {} data_frame from cache'.format(asset))
+                self.data_frames[asset] = pd.read_csv(complete_df_path)
 
-            self.data_frames[asset] = self.__add_indicators(asset)
+            else:
+
+                self.data_frames[asset] = self.__fetch_api(asset)
+
+                self.data_frames[asset] = self.__add_indicators(asset)
+
+                self.__save_complete_data_frame_to_csv(asset)
 
             self.train_data_frame[asset], self.test_data_frame[asset] = self.__split_data_frames(
                 asset)
 
             self.df_features[asset] = self.__populate_df_features(
                 asset, 'train')
-
-            print('> Caching {} data_frame'.format(asset))
-
-            self.__save_complete_data_frame_to_csv(asset)
 
     def __fetch_api(self, asset: str) -> pd.DataFrame:
         """Fetch the CryptoCompare API and return historical prices for a given asset
@@ -72,40 +77,31 @@ class Market:
                 raw_data_frame (pandas.Dataframe): The API 'Data' key response converted to a pandas Dataframe
         """
 
-        path_to_raw_data_frame = 'data/raw_data_frame_{}.csv'.format(
-            asset)
+        print('> Fetching {} data_frame'.format(asset))
 
-        if os.path.exists(path_to_raw_data_frame):
-            raw_data_frame = pd.read_csv(path_to_raw_data_frame)
+        headers = {'User-Agent': 'Mozilla/5.0',
+                   'authorization': 'Apikey {}'.format(self.CRYPTOCOMPARE_API_KEY)}
+        url = 'https://min-api.cryptocompare.com/data/histo{}?fsym={}&tsym={}&limit={}&e={}'.format(
+            self.granularity, asset, self.currency, self.data_points, self.exchange)
+        response = requests.get(url, headers=headers)
+        json_response = response.json()
+        status = json_response['Response']
 
-            return raw_data_frame
+        if status == "Error":
+            print('Error fetching {} data_frame'.format(asset))
+            raise AssertionError(json_response['Message'])
 
-        else:
-            headers = {'User-Agent': 'Mozilla/5.0',
-                       'authorization': 'Apikey {}'.format(self.CRYPTOCOMPARE_API_KEY)}
-            url = 'https://min-api.cryptocompare.com/data/histo{}?fsym={}&tsym={}&limit={}&e={}'.format(
-                self.granularity, asset, self.currency, self.data_points, self.exchange)
-            response = requests.get(url, headers=headers)
-            json_response = response.json()
-            status = json_response['Response']
+        result = json_response['Data']
 
-            if status == "Error":
-                print('Error fetching {} data_frame'.format(asset))
-                raise AssertionError(json_response['Message'])
+        pandas_data_frame = pd.DataFrame(result)
+        to_datetime_arg = pandas_data_frame['time']
+        pandas_data_frame.drop(['time', 'conversionType',
+                                'conversionSymbol'], axis=1, inplace=True)
 
-            result = json_response['Data']
+        pandas_data_frame['Date'] = pd.to_datetime(
+            arg=to_datetime_arg, utc=True, unit='s')
 
-            pandas_data_frame = pd.DataFrame(result)
-            to_datetime_arg = pandas_data_frame['time']
-            pandas_data_frame.drop(['time', 'conversionType',
-                                   'conversionSymbol'], axis=1, inplace=True)
-
-            pandas_data_frame['Date'] = pd.to_datetime(
-                arg=to_datetime_arg, utc=True, unit='s')
-
-            raw_data_frame = ray_data.from_pandas(pandas_data_frame)
-
-            return pandas_data_frame
+        return pandas_data_frame
 
     def __add_indicators(self, asset: str) -> pd.DataFrame:
         """Get the `self.raw_data_frame` data_frame and adds the market indicators for the given time series.
@@ -138,7 +134,10 @@ class Market:
 
             Returns:
                 None"""
-        path_to_data_frame = 't1000_v2/data/complete_{}_data_frame.csv'.format(
+
+        print('> Caching {} data_frame'.format(asset))
+
+        path_to_data_frame = self.PATH_TO_COMPLETE_DATA_FRAME.format(
             asset)
         self.data_frames[asset].to_csv(path_to_data_frame)
 
